@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iomanip>
 #include <locale>
+#include <cstring>
 /* Copyright (c) 2021 OceanBase and/or its affiliates. All rights reserved.
 miniob is licensed under Mulan PSL v2.
 You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,6 +19,13 @@ See the Mulan PSL v2 for more details.
 #include "common/log/log.h"
 #include "common/type/char_type.h"
 #include "common/value.h"
+
+int CharType::compare(const Value &left, const Value &right) const
+{
+  const char *left_data = left.get_string().c_str();
+  const char *right_data = right.get_string().c_str();
+  return strcmp(left_data, right_data);
+}
 
 RC CharType::cast_to(const Value &val, AttrType type, Value &result) const
 {
@@ -44,5 +52,23 @@ RC CharType::cast_to(const Value &val, AttrType type, Value &result) const
       break;
     default: return RC::UNIMPLEMENTED;
   }
+  return RC::SUCCESS;
+}
+
+RC CharType::set_value_from_str(Value &val, const std::string &data) const
+{
+  val.set_string(data.c_str());
+  return RC::SUCCESS;
+}
+
+int CharType::cast_cost(AttrType type)
+{
+  // 简单实现：所有类型转换成本为1
+  return 1;
+}
+
+RC CharType::to_string(const Value &val, std::string &result) const
+{
+  result = "'" + val.get_string() + "'";
   return RC::SUCCESS;
 }
