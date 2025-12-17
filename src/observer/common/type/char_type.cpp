@@ -63,7 +63,6 @@ RC CharType::set_value_from_str(Value &val, const std::string &data) const
 
 int CharType::cast_cost(AttrType type)
 {
-  // 简单实现：所有类型转换成本为1
   return 1;
 }
 
