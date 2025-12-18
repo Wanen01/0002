@@ -8,68 +8,82 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
-#include "common/lang/comparator.h"
-#include "common/lang/sstream.h"
+#include "date_type.h"
 #include "common/log/log.h"
-#include "common/type/date_type.h"
 #include "common/value.h"
 
 #include <iostream>
 #include <sstream>
-#include <ctime>
-#include <chrono>
 #include <iomanip>
-#include <time.h>
+#include <ctime>
+#include <string>
+#include <cstdlib>
+
+using namespace std;
 
 int DateType::compare(const Value &left, const Value &right) const
 {
-  ASSERT(left.attr_type() == AttrType::DATES, "left type is not date");
-  ASSERT(right.attr_type() == AttrType::DATES, "right type is not date");
-  if (right.attr_type() == AttrType::DATES) {
-    return common::compare_int((void *)&left.value_.int_value_, (void *)&right.value_.int_value_);
-  } else if (right.attr_type() == AttrType::FLOATS) {
-    return common::compare_float((void *)&left.value_.int_value_, (void *)&right.value_.int_value_);
-  }
-  return INT32_MAX;
+    ASSERT(left.attr_type() == AttrType::DATES, "left type is not date");
+    ASSERT(right.attr_type() == AttrType::DATES, "right type is not date");
+
+    if (left.date_year_ != right.date_year_) return left.date_year_ - right.date_year_;
+    if (left.date_month_ != right.date_month_) return left.date_month_ - right.date_month_;
+    return left.date_day_ - right.date_day_;
 }
 
 RC DateType::add(const Value &left, const Value &right, Value &result) const
 {
-  result.set_int(left.get_int() + right.get_int());
-  return RC::SUCCESS;
+    // 简单处理，加天数
+    int total_days = left.date_day_ + right.date_day_;
+    int day = total_days % 31; // 简单取余，不做复杂日历处理
+    int month = left.date_month_ + right.date_month_ + total_days / 31;
+    int year = left.date_year_ + right.date_year_ + month / 12;
+    month = month % 12;
+    if (day == 0) day = 1;
+    if (month == 0) month = 1;
+    result.set_year(year);
+    result.set_month(month);
+    result.set_day(day);
+    return RC::SUCCESS;
 }
 
 RC DateType::subtract(const Value &left, const Value &right, Value &result) const
 {
-  result.set_int(left.get_int() - right.get_int());
-  return RC::SUCCESS;
+    // 简单处理，返回天数差
+    int diff_days = (left.date_year_ - right.date_year_) * 365 +
+                    (left.date_month_ - right.date_month_) * 30 +
+                    (left.date_day_ - right.date_day_);
+    result.set_int(diff_days);
+    return RC::SUCCESS;
 }
 
 RC DateType::set_value_from_str(Value &val, const string &data) const
 {
-  RC                rc = RC::SUCCESS;
+    if (data.empty()) {
+        LOG_WARN("empty date string");
+        return RC::GENERIC_ERROR;
+    }
 
-  std::tm tm = {};
-  std::istringstream iss(data);
-  iss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+    int y = 0, m = 0, d = 0;
+    if (sscanf(data.c_str(), "%4d-%2d-%2d", &y, &m, &d) != 3) {
+        LOG_WARN("failed to parse date string: %s", data.c_str());
+        return RC::GENERIC_ERROR;
+    }
 
-  if (!iss.fail()) {
-    rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
-  } else {
-    std::time_t tt = std::mktime(&tm);
-    struct tm *p = localtime(&tt);
     val.set_type(AttrType::DATES);
-    val.set_year(p->tm_year);
-    val.set_month(p->tm_mon);
-    val.set_day(p->tm_mday);
-  }
-  return rc;
+    val.set_year(y);
+    val.set_month(m);
+    val.set_day(d);
+
+    return RC::SUCCESS;
 }
 
 RC DateType::to_string(const Value &val, string &result) const
 {
-  stringstream ss;
-  ss << val.date_year_ << "-" << val.date_month_ << "-" << val.date_day_;
-  result = ss.str();
-  return RC::SUCCESS;
+    stringstream ss;
+    ss << setfill('0') << setw(4) << val.date_year_ << "-"
+       << setw(2) << val.date_month_ << "-"
+       << setw(2) << val.date_day_;
+    result = ss.str();
+    return RC::SUCCESS;
 }
